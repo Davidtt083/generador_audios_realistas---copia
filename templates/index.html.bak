@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text-to-Speech</title>
+</head>
+<body>
+    <h1>Text-to-Speech with Google Cloud</h1>
+    <form action="/synthesize" method="post">
+        <textarea name="text" rows="10" cols="50" placeholder="Enter text here..."></textarea><br>
+        <label for="language">Language:</label>
+        <select name="language" id="language">
+            <!-- Las opciones de idioma se cargarán dinámicamente -->
+        </select><br>
+        <label for="voice">Voice:</label>
+        <select name="voice" id="voice">
+            <!-- Las opciones de voz se cargarán dinámicamente -->
+        </select><br>
+        <button type="submit">Synthesize</button>
+    </form>
+    {% if audio_file %}
+        <audio controls>
+            <source src="{{ url_for('static', filename=audio_file) }}" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
+    {% endif %}
+
+    <script>
+        const languageSelect = document.getElementById('language');
+        const voiceSelect = document.getElementById('voice');
+        let allVoices = {}; // Variable global para guardar todas las voces
+
+        // Función para poblar las voces para el idioma seleccionado
+        function populateVoices() {
+            const selectedLanguage = languageSelect.value;
+            voiceSelect.innerHTML = ''; // Limpiar opciones anteriores
+            if (allVoices[selectedLanguage]) {
+                allVoices[selectedLanguage].forEach(voice => {
+                    const option = document.createElement('option');
+                    option.value = voice.name;
+                    option.textContent = `${voice.name} (${voice.gender})`;
+                    voiceSelect.appendChild(option);
+                });
+            }
+        }
+
+        // Función para cargar los datos iniciales desde el backend
+        async function loadInitialData() {
+            try {
+                const response = await fetch('/get_voices');
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                allVoices = await response.json();
+                
+                // Poblar el selector de idiomas
+                languageSelect.innerHTML = '';
+                const sortedLanguages = Object.keys(allVoices).sort(); // Ordenar alfabéticamente
+
+                sortedLanguages.forEach(langCode => {
+                    const option = document.createElement('option');
+                    option.value = langCode;
+                    option.textContent = langCode; // Podrías tener un mapa para nombres más amigables
+                    languageSelect.appendChild(option);
+                });
+
+                // Poblar las voces para el primer idioma de la lista
+                populateVoices();
+
+            } catch (error) {
+                console.error('Failed to fetch voices:', error);
+                // Manejar el error, por ejemplo, mostrando un mensaje al usuario
+            }
+        }
+
+        // Event listener para cuando cambia el idioma
+        languageSelect.addEventListener('change', populateVoices);
+
+        // Cargar los datos cuando la página se carga
+        document.addEventListener('DOMContentLoaded', loadInitialData);
+
+    </script>
+</body>
+</html>

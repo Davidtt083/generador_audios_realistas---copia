@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text-to-Speech con Gemini</title>
+    <style>
+        body { 
+            font-family: sans-serif; 
+            max-width: 800px; 
+            margin: 40px auto; 
+            padding: 20px; 
+            line-height: 1.6; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #4a5568;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #718096;
+            margin-bottom: 30px;
+        }
+        textarea { 
+            width: 100%; 
+            font-size: 16px; 
+            padding: 15px; 
+            margin-bottom: 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            resize: vertical;
+            font-family: inherit;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        select, button { 
+            font-size: 16px; 
+            padding: 12px 15px; 
+            margin-bottom: 15px;
+            border-radius: 8px;
+            border: 2px solid #e2e8f0;
+        }
+        select {
+            width: 100%;
+            background: white;
+        }
+        button { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        audio { 
+            width: 100%; 
+            margin-top: 20px;
+            border-radius: 8px;
+        }
+        .error { 
+            color: #e53e3e; 
+            font-weight: bold;
+            background: #fed7d7;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .success {
+            background: #c6f6d5;
+            color: #2f855a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        label {
+            font-weight: 600;
+            color: #4a5568;
+            display: block;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎙️ Text-to-Speech con Gemini</h1>
+        <p class="subtitle">Convierte texto a audio usando <code>gemini-2.5-flash-preview-tts</code></p>
+        
+        {% if error %}
+            <div class="error">❌ {{ error }}</div>
+        {% endif %}
+
+        <form action="/synthesize" method="post">
+            <label for="text">Texto a convertir:</label>
+            <textarea name="text" id="text" rows="8" cols="50" 
+                     placeholder="Escribe aquí el texto que quieres convertir a audio...">{{ request.form.text if request.form.text else '' }}</textarea>
+            
+            <label for="voice">Selecciona una voz:</label>
+            <select name="voice" id="voice">
+                <option value="Fenrir" selected>Fenrir (Hombre)</option>
+                <option value="Puck">Puck (Hombre)</option>
+                <option value="Charon">Charon (Mujer)</option>
+                <option value="Kore">Kore (Mujer)</option>
+                <option value="Fenrir">Fenrir (Mujer)</option>
+                <option value="Leda">Leda (Mujer)</option>
+                <option value="Orus">Orus (Hombre)</option>
+                <option value="Aoede">Aoede (Mujer)</option>
+                <option value="Callirrhoe">Callirhoe (Mujer)</option> 
+                <option value="Autonoe">Autonoe (Mujer)</option>
+                <option value="Enceladus">Enceladus (Hombre)</option>
+                <option value="Lapetus">Lapetus (Hombre)</option>
+
+            </select>
+            <p style="font-size: 14px; color: #718096; margin-top: 5px;">
+                💡 <strong>Nota:</strong> Aunque las voces tienen acento inglés, manejan bien otros idiomas como español.
+            </p>
+            
+            <button type="submit">🎵 Generar Audio</button>
+        </form>
+        
+        {% if audio_file %}
+            <div class="success">
+                ✅ <strong>¡Audio generado exitosamente!</strong>
+            </div>
+            <h2>🔊 Reproducir Audio:</h2>
+            <audio controls autoplay>
+                <source src="{{ url_for('static', filename=audio_file) }}?v={{ range(1, 1000) | random }}" type="audio/wav">
+                Tu navegador no soporta el elemento de audio.
+            </audio>
+        {% endif %}
+    </div>
+</body>
+</html>

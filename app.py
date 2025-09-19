@@ -1,0 +1,116 @@
+import os
+import struct
+import mimetypes
+from flask import Flask, render_template, request, url_for
+from dotenv import load_dotenv
+
+# Importación para la librería google-generativeai tradicional
+import google.generativeai as genai
+
+# --- CONFIGURACIÓN INICIAL ---
+# Carga las variables de entorno (tu API key) desde el archivo .env
+load_dotenv()
+
+app = Flask(__name__)
+
+# Asegúrate de que el directorio 'static' exista
+if not os.path.exists("static"):
+    os.makedirs("static")
+
+# Configura la API de Google Gemini
+try:
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("GEMINI_API_KEY no encontrada en el archivo .env")
+    
+    genai.configure(api_key=api_key)
+    print("API Key de Gemini configurada exitosamente.")
+except Exception as e:
+    print(f"Error crítico al configurar la API Key: {e}")
+    # Si no hay clave, la app no puede funcionar.
+    exit()
+
+# --- FUNCIONES DE AYUDA ---
+def convert_to_wav(audio_data: bytes, mime_type: str) -> bytes:
+    """Genera una cabecera de archivo WAV para los datos de audio crudos."""
+    # Extrae la tasa de muestreo del mime_type (ej. "audio/L16;rate=24000")
+    # Si no se encuentra, usa 24000 por defecto.
+    try:
+        sample_rate = int(mime_type.split("rate=")[1])
+    except (IndexError, ValueError):
+        sample_rate = 24000  # Valor por defecto seguro para Gemini TTS
+
+    bits_per_sample = 16
+    num_channels = 1
+    data_size = len(audio_data)
+    bytes_per_sample = bits_per_sample // 8
+    block_align = num_channels * bytes_per_sample
+    byte_rate = sample_rate * block_align
+    chunk_size = 36 + data_size
+
+    header = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF", chunk_size, b"WAVE", b"fmt ", 16, 1,
+        num_channels, sample_rate, byte_rate, block_align,
+        bits_per_sample, b"data", data_size
+    )
+    return header + audio_data
+
+# --- RUTAS DE FLASK ---
+@app.route('/', methods=['GET'])
+def index():
+    return render_template('index.html')
+
+@app.route('/synthesize', methods=['POST'])
+def synthesize():
+    text_to_speak = request.form['text']
+    voice_name = request.form['voice']
+
+    if not text_to_speak:
+        return render_template('index.html', error="Por favor, introduce un texto.")
+
+    try:
+        # Usar el modelo TTS correcto
+        model = genai.GenerativeModel('models/gemini-2.5-flash-preview-tts')
+        
+        # Configuración para TTS usando generation_config
+        generation_config = {
+            "response_modalities": ["AUDIO"],
+            "speech_config": {
+                "voice_config": {
+                    "prebuilt_voice_config": {
+                        "voice_name": voice_name
+                    }
+                }
+            }
+        }
+
+        # Generar contenido con audio
+        response = model.generate_content(
+            contents=[text_to_speak],
+            generation_config=generation_config
+        )
+
+        # Extraer los datos de audio de la respuesta
+        audio_part = response.parts[0]
+        audio_bytes_raw = audio_part.inline_data.data
+        audio_mime_type = audio_part.inline_data.mime_type
+        
+        # Convertir a WAV
+        wav_data = convert_to_wav(audio_bytes_raw, audio_mime_type)
+
+        # Guardar archivo
+        audio_file = "output.wav"
+        static_audio_path = os.path.join("static", audio_file)
+        with open(static_audio_path, "wb") as out:
+            out.write(wav_data)
+            print(f'Audio content written to file "{static_audio_path}"')
+
+        return render_template('index.html', audio_file=audio_file)
+
+    except Exception as e:
+        print(f"Ocurrió un error durante la síntesis: {e}")
+        return render_template('index.html', error=f"Error al generar el audio: {e}")
+
+if __name__ == '__main__':
+    app.run(debug=True)

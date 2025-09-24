@@ -40,6 +40,7 @@
             border-radius: 8px;
             resize: vertical;
             font-family: inherit;
+            box-sizing: border-box; /* <!-- AÑADIDO: Mejor manejo del ancho --> */
         }
         textarea:focus {
             outline: none;
@@ -52,6 +53,7 @@
             margin-bottom: 15px;
             border-radius: 8px;
             border: 2px solid #e2e8f0;
+            box-sizing: border-box; /* <!-- AÑADIDO: Mejor manejo del ancho --> */
         }
         select {
             width: 100%;
@@ -63,12 +65,19 @@
             border: none;
             cursor: pointer;
             font-weight: 600;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s;
             width: 100%;
         }
         button:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        /* <!-- NUEVO: Estilo para el botón deshabilitado --> */
+        button:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
         audio { 
             width: 100%; 
@@ -82,6 +91,7 @@
             padding: 10px;
             border-radius: 8px;
             margin-bottom: 20px;
+            text-align: center;
         }
         .success {
             background: #c6f6d5;
@@ -96,27 +106,43 @@
             display: block;
             margin-bottom: 8px;
         }
+        /* <!-- NUEVO: Estilos para el indicador de carga (loader) --> */
+        .loader {
+            border: 6px solid #f3f3f3;
+            border-top: 6px solid #764ba2;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎙️ Text-to-Speech con Gemini</h1>
-        <p class="subtitle">Convierte texto a audio usando <code>gemini-2.5-flash-preview-tts</code></p>
+        <h1>🎙️ Generador de voces realistas</h1>
+        <p class="subtitle">Convierte texto a audio usando</p>
         
-        {% if error %}
-            <div class="error">❌ {{ error }}</div>
-        {% endif %}
-
-        <form action="/synthesize" method="post">
+        <!-- MODIFICADO: Se elimina el action/method y se añade un ID al formulario -->
+        <form id="tts-form">
             <label for="text">Texto a convertir:</label>
+            <!-- MODIFICADO: Se elimina el valor Jinja, ya que la página no se recarga -->
             <textarea name="text" id="text" rows="8" cols="50" 
-                     placeholder="Escribe aquí el texto que quieres convertir a audio...">{{ request.form.text if request.form.text else '' }}</textarea>
+                     placeholder="Escribe aquí el texto que quieres convertir a audio..."></textarea>
             
             <label for="voice">Selecciona una voz:</label>
+            <!-- Tu lista de voces se mantiene intacta -->
             <select name="voice" id="voice">
                 <option value="Fenrir" selected>Fenrir (Hombre)</option>
                 <option value="Puck">Puck (Hombre)</option>
-                <option value="Charon">Charon (Mujer)</option>
+                <option value="Charon">Juan (Hombre)</option>
                 <option value="Kore">Kore (Mujer)</option>
                 <option value="Fenrir">Fenrir (Mujer)</option>
                 <option value="Leda">Leda (Mujer)</option>
@@ -126,25 +152,90 @@
                 <option value="Autonoe">Autonoe (Mujer)</option>
                 <option value="Enceladus">Enceladus (Hombre)</option>
                 <option value="Lapetus">Lapetus (Hombre)</option>
-
+                <option value="Umbriel">Uriel (Hombre)</option>
+                <option value="Algieba">Juan (Hombre)</option>
+                <option value="Despina">María (Mujer)</option>
+                <option value="Erinome">Dorortea (Mujer)</option>
             </select>
             <p style="font-size: 14px; color: #718096; margin-top: 5px;">
-                💡 <strong>Nota:</strong> Aunque las voces tienen acento inglés, manejan bien otros idiomas como español.
+                💡 <strong>Nota:</strong> Revisa siempre la salida antes de publicar
             </p>
             
-            <button type="submit">🎵 Generar Audio</button>
+            <!-- MODIFICADO: Se añade un ID al botón -->
+            <button type="submit" id="submit-btn">🎵 Generar Audio</button>
         </form>
         
-        {% if audio_file %}
-            <div class="success">
-                ✅ <strong>¡Audio generado exitosamente!</strong>
-            </div>
-            <h2>🔊 Reproducir Audio:</h2>
-            <audio controls autoplay>
-                <source src="{{ url_for('static', filename=audio_file) }}?v={{ range(1, 1000) | random }}" type="audio/wav">
-                Tu navegador no soporta el elemento de audio.
-            </audio>
-        {% endif %}
+        <!-- NUEVO: Contenedor para el loader, errores y resultados, reemplaza los bloques Jinja -->
+        <div id="loader" class="loader hidden"></div>
+        <div id="error-container"></div>
+        <div id="audio-result-container"></div>
+        
     </div>
+
+    <!-- NUEVO: Script de JavaScript que maneja toda la lógica -->
+    <script>
+        // Seleccionamos los elementos clave del DOM
+        const ttsForm = document.getElementById('tts-form');
+        const submitBtn = document.getElementById('submit-btn');
+        const loader = document.getElementById('loader');
+        const errorContainer = document.getElementById('error-container');
+        const audioResultContainer = document.getElementById('audio-result-container');
+
+        // Escuchamos el evento de envío del formulario
+        ttsForm.addEventListener('submit', async function(event) {
+            // Prevenimos que la página se recargue
+            event.preventDefault();
+
+            // 1. Preparamos la interfaz para la carga
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Generando...';
+            loader.classList.remove('hidden');
+            errorContainer.innerHTML = ''; // Limpiamos errores previos
+            audioResultContainer.innerHTML = ''; // Limpiamos audios previos
+
+            try {
+                // 2. Enviamos los datos del formulario al backend
+                const formData = new FormData(ttsForm);
+                const response = await fetch("{{ url_for('synthesize') }}", {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                // 3. Procesamos la respuesta
+                if (response.ok && data.success) {
+                    // Si todo fue bien, creamos la URL del audio
+                    const audioFileUrl = "{{ url_for('static', filename='') }}" + data.audio_file;
+                    
+                    // Creamos el HTML del resultado y lo mostramos
+                    audioResultContainer.innerHTML = `
+                        <div class="success">
+                            ✅ <strong>¡Audio generado exitosamente!</strong>
+                        </div>
+                        <h2>🔊 Reproducir Audio:</h2>
+                        <audio controls autoplay>
+                            <source src="${audioFileUrl}" type="audio/wav">
+                            Tu navegador no soporta el elemento de audio.
+                        </audio>
+                    `;
+                } else {
+                    // Si el backend devolvió un error, lo mostramos
+                    const errorMessage = data.error || 'Ocurrió un error inesperado.';
+                    errorContainer.innerHTML = `<div class="error">❌ ${errorMessage}</div>`;
+                }
+
+            } catch (error) {
+                // Capturamos errores de red o de conexión
+                console.error('Error en la solicitud:', error);
+                errorContainer.innerHTML = `<div class="error">❌ Error de conexión. Por favor, inténtalo de nuevo.</div>`;
+            } finally {
+                // 4. Se ejecuta siempre al final: restauramos la interfaz
+                loader.classList.add('hidden');
+                submitBtn.disabled = false;
+                submitBtn.textContent = '🎵 Generar Audio';
+            }
+        });
+    </script>
 </body>
 </html>

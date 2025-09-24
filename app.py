@@ -1,15 +1,20 @@
 import os
 import struct
 import mimetypes
-from flask import Flask, render_template, request, url_for
+from flask import Flask, render_template, request, url_for, jsonify
 from dotenv import load_dotenv
+import uuid
+
+env_path = '/home/vocesrealistas/generador_audios_realistas---copia/.env'
 
 # Importación para la librería google-generativeai tradicional
 import google.generativeai as genai
 
+env_path = '/home/vocesrealistas/generador_audios_realistas---copia/.env'
+
 # --- CONFIGURACIÓN INICIAL ---
 # Carga las variables de entorno (tu API key) desde el archivo .env
-load_dotenv()
+load_dotenv(dotenv_path=env_path)
 
 app = Flask(__name__)
 
@@ -22,7 +27,7 @@ try:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise ValueError("GEMINI_API_KEY no encontrada en el archivo .env")
-    
+
     genai.configure(api_key=api_key)
     print("API Key de Gemini configurada exitosamente.")
 except Exception as e:
@@ -63,16 +68,18 @@ def index():
 
 @app.route('/synthesize', methods=['POST'])
 def synthesize():
+    # Esta parte se queda igual
     text_to_speak = request.form['text']
     voice_name = request.form['voice']
 
     if not text_to_speak:
-        return render_template('index.html', error="Por favor, introduce un texto.")
+        # En caso de error de validación, devolvemos un JSON de error
+        return jsonify({'success': False, 'error': 'Por favor, introduce un texto.'}), 400
 
     try:
         # Usar el modelo TTS correcto
         model = genai.GenerativeModel('models/gemini-2.5-flash-preview-tts')
-        
+
         # Configuración para TTS usando generation_config
         generation_config = {
             "response_modalities": ["AUDIO"],
@@ -95,22 +102,28 @@ def synthesize():
         audio_part = response.parts[0]
         audio_bytes_raw = audio_part.inline_data.data
         audio_mime_type = audio_part.inline_data.mime_type
-        
+
         # Convertir a WAV
         wav_data = convert_to_wav(audio_bytes_raw, audio_mime_type)
 
         # Guardar archivo
-        audio_file = "output.wav"
-        static_audio_path = os.path.join("static", audio_file)
+        unique_filename = f"{str(uuid.uuid4())}.wav"
+
+        # Usar el nuevo nombre único para guardar el archivo
+        static_audio_path = os.path.join("static", unique_filename)
         with open(static_audio_path, "wb") as out:
             out.write(wav_data)
             print(f'Audio content written to file "{static_audio_path}"')
 
-        return render_template('index.html', audio_file=audio_file)
+            return jsonify({
+            'success': True,
+            'audio_file': unique_filename
+        })
 
     except Exception as e:
         print(f"Ocurrió un error durante la síntesis: {e}")
-        return render_template('index.html', error=f"Error al generar el audio: {e}")
+        # Devolvemos un JSON con el mensaje de error
+        return jsonify({'success': False, 'error': f"Error al generar el audio: {e}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)

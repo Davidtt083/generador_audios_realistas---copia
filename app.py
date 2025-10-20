@@ -7,22 +7,21 @@ import uuid
 
 env_path = '/home/vocesrealistas/generador_audios_realistas---copia/.env'
 
-# Importación para la librería google-generativeai tradicional
+
 import google.generativeai as genai
 
 env_path = '/home/vocesrealistas/generador_audios_realistas---copia/.env'
 
-# --- CONFIGURACIÓN INICIAL ---
-# Carga las variables de entorno (tu API key) desde el archivo .env
+
 load_dotenv(dotenv_path=env_path)
 
 app = Flask(__name__)
 
-# Asegúrate de que el directorio 'static' exista
+
 if not os.path.exists("static"):
     os.makedirs("static")
 
-# Configura la API de Google Gemini
+
 try:
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -32,19 +31,17 @@ try:
     print("API Key de Gemini configurada exitosamente.")
 except Exception as e:
     print(f"Error crítico al configurar la API Key: {e}")
-    # Si no hay clave, la app no puede funcionar.
+    
     exit()
 
-# --- FUNCIONES DE AYUDA ---
+
 def convert_to_wav(audio_data: bytes, mime_type: str) -> bytes:
     """Genera una cabecera de archivo WAV para los datos de audio crudos."""
-    # Extrae la tasa de muestreo del mime_type (ej. "audio/L16;rate=24000")
-    # Si no se encuentra, usa 24000 por defecto.
+    
     try:
         sample_rate = int(mime_type.split("rate=")[1])
     except (IndexError, ValueError):
-        sample_rate = 24000  # Valor por defecto seguro para Gemini TTS
-
+        sample_rate = 24000 
     bits_per_sample = 16
     num_channels = 1
     data_size = len(audio_data)
@@ -68,19 +65,19 @@ def index():
 
 @app.route('/synthesize', methods=['POST'])
 def synthesize():
-    # Esta parte se queda igual
+    
     text_to_speak = request.form['text']
     voice_name = request.form['voice']
 
     if not text_to_speak:
-        # En caso de error de validación, devolvemos un JSON de error
+        
         return jsonify({'success': False, 'error': 'Por favor, introduce un texto.'}), 400
 
     try:
-        # Usar el modelo TTS correcto
+        
         model = genai.GenerativeModel('models/gemini-2.5-flash-preview-tts')
 
-        # Configuración para TTS usando generation_config
+        
         generation_config = {
             "response_modalities": ["AUDIO"],
             "speech_config": {
@@ -92,24 +89,24 @@ def synthesize():
             }
         }
 
-        # Generar contenido con audio
+        
         response = model.generate_content(
             contents=[text_to_speak],
             generation_config=generation_config
         )
 
-        # Extraer los datos de audio de la respuesta
+        
         audio_part = response.parts[0]
         audio_bytes_raw = audio_part.inline_data.data
         audio_mime_type = audio_part.inline_data.mime_type
 
-        # Convertir a WAV
+       
         wav_data = convert_to_wav(audio_bytes_raw, audio_mime_type)
 
-        # Guardar archivo
+        
         unique_filename = f"{str(uuid.uuid4())}.wav"
 
-        # Usar el nuevo nombre único para guardar el archivo
+        
         static_audio_path = os.path.join("static", unique_filename)
         with open(static_audio_path, "wb") as out:
             out.write(wav_data)
@@ -122,7 +119,7 @@ def synthesize():
 
     except Exception as e:
         print(f"Ocurrió un error durante la síntesis: {e}")
-        # Devolvemos un JSON con el mensaje de error
+        
         return jsonify({'success': False, 'error': f"Error al generar el audio: {e}"}), 500
 
 if __name__ == '__main__':

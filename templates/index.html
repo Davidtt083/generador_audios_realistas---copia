@@ -172,21 +172,21 @@
         
     </div>
 
-    <!-- NUEVO: Script de JavaScript que maneja toda la lógica -->
+   
     <script>
-        // Seleccionamos los elementos clave del DOM
+        
         const ttsForm = document.getElementById('tts-form');
         const submitBtn = document.getElementById('submit-btn');
         const loader = document.getElementById('loader');
         const errorContainer = document.getElementById('error-container');
         const audioResultContainer = document.getElementById('audio-result-container');
 
-        // Escuchamos el evento de envío del formulario
+       
         ttsForm.addEventListener('submit', async function(event) {
-            // Prevenimos que la página se recargue
+            
             event.preventDefault();
 
-            // 1. Preparamos la interfaz para la carga
+            
             submitBtn.disabled = true;
             submitBtn.textContent = 'Generando...';
             loader.classList.remove('hidden');
@@ -194,7 +194,7 @@
             audioResultContainer.innerHTML = ''; // Limpiamos audios previos
 
             try {
-                // 2. Enviamos los datos del formulario al backend
+               
                 const formData = new FormData(ttsForm);
                 const response = await fetch("{{ url_for('synthesize') }}", {
                     method: 'POST',
@@ -203,12 +203,11 @@
 
                 const data = await response.json();
 
-                // 3. Procesamos la respuesta
+              
                 if (response.ok && data.success) {
-                    // Si todo fue bien, creamos la URL del audio
+                    
                     const audioFileUrl = "{{ url_for('static', filename='') }}" + data.audio_file;
                     
-                    // Creamos el HTML del resultado y lo mostramos
                     audioResultContainer.innerHTML = `
                         <div class="success">
                             ✅ <strong>¡Audio generado exitosamente!</strong>
@@ -220,17 +219,17 @@
                         </audio>
                     `;
                 } else {
-                    // Si el backend devolvió un error, lo mostramos
+                    
                     const errorMessage = data.error || 'Ocurrió un error inesperado.';
                     errorContainer.innerHTML = `<div class="error">❌ ${errorMessage}</div>`;
                 }
 
             } catch (error) {
-                // Capturamos errores de red o de conexión
+               
                 console.error('Error en la solicitud:', error);
                 errorContainer.innerHTML = `<div class="error">❌ Error de conexión. Por favor, inténtalo de nuevo.</div>`;
             } finally {
-                // 4. Se ejecuta siempre al final: restauramos la interfaz
+                
                 loader.classList.add('hidden');
                 submitBtn.disabled = false;
                 submitBtn.textContent = '🎵 Generar Audio';
